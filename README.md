@@ -1,0 +1,2 @@
+# Dolinstall
+Dolibarr Script Installer 
