@@ -7,6 +7,8 @@ echo "██║  ██║██║   ██║██║     ██║██║�
 echo "██████╔╝╚██████╔╝███████╗██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗"
 echo "╚═════╝  ╚═════╝ ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝"
 
+#!/bin/bash
+
 # Function to check the operating system
 check_os() {
     if [ -f /etc/os-release ]; then
@@ -164,19 +166,42 @@ configure_ufw() {
 
 # Function to install specific versions
 install_specific_versions() {
-    # Add PHP repository for 8.2
-    add-apt-repository ppa:ondrej/php -y
+    # Install dependencies for building PHP and NGINX
     apt update
-    apt install -y php8.2=8.2.20-1+ubuntu$(lsb_release -sr) expect
+    apt install -y build-essential libxml2-dev libssl-dev libcurl4-openssl-dev pkg-config libjpeg-dev libpng-dev libwebp-dev libfreetype6-dev libonig-dev libzip-dev zlib1g-dev
 
-    # Add MariaDB repository and install version 11.4.2
-    apt install software-properties-common -y
-    curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
-    apt update
-    apt install -y mariadb-server=1:11.4.2+maria~$(lsb_release -sc)
-    
+    # Download and install PHP 8.2.20
+    cd /usr/local/src
+    wget https://www.php.net/distributions/php-8.2.20.tar.gz
+    tar -xzvf php-8.2.20.tar.gz
+    cd php-8.2.20
+    ./configure --prefix=/usr/local/php --with-config-file-path=/usr/local/php --enable-fpm --with-fpm-user=www-data --with-fpm-group=www-data --with-mysqli --with-pdo-mysql --with-zlib --with-curl --with-openssl --enable-mbstring --with-gd --with-jpeg --with-webp --with-freetype
+    make
+    make install
+
+    # Create a symbolic link to make PHP command available
+    ln -s /usr/local/php/bin/php /usr/bin/php
+    ln -s /usr/local/php/sbin/php-fpm /usr/sbin/php-fpm
+
+    # Configure PHP-FPM
+    cp sapi/fpm/php-fpm.conf /usr/local/php/etc/php-fpm.conf
+    cp sapi/fpm/www.conf /usr/local/php/etc/php-fpm.d/www.conf
+
+    # Download and install MariaDB 11.4.2
+    cd /usr/local/src
+    wget https://mirrors.ircam.fr/pub/mariadb/mariadb-11.2.4/bintar-linux-systemd-x86_64/mariadb-11.2.4-linux-systemd-x86_64.tar.gz
+    tar -xzvf mariadb-11.2.4-linux-systemd-x86_64.tar.gz
+    mv mariadb-11.2.4-linux-systemd-x86_64 /usr/local/mariadb
+    cd /usr/local/mariadb
+    scripts/mysql_install_db --user=mysql --basedir=/usr/local/mariadb --datadir=/usr/local/mariadb/data
+    cp support-files/mysql.server /etc/init.d/mysql
+    update-rc.d mysql defaults
+
+    # Start MariaDB
+    /etc/init.d/mysql start
+
     # Install dependencies for building NGINX
-    apt install -y build-essential libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev
+    apt install -y libpcre3 libpcre3-dev zlib1g zlib1g-dev
 
     # Download and install NGINX 1.22.1
     cd /usr/local/src
@@ -227,7 +252,7 @@ case $choice in
         echo "MariaDB root password has been changed."
         echo "The new password is saved in: $PASSWORD_FILE"
 
-        mysql -u root -p"$ROOT_PASSWORD" <<EOF
+        /usr/local/mariadb/bin/mysql -u root -p"$ROOT_PASSWORD" <<EOF
 CREATE DATABASE dolibarr CHARACTER SET utf8 COLLATE utf8_unicode_ci;
 CREATE USER '$DOLIBARR_USER'@'localhost' IDENTIFIED BY '$DOLIBARR_PASSWORD';
 GRANT ALL PRIVILEGES ON dolibarr.* TO '$DOLIBARR_USER'@'localhost';
@@ -237,7 +262,7 @@ EOF
         echo "MariaDB configuration complete."
 
         echo "Installing Dolibarr and configuring NGINX..."
-        apt install -y php8.2-fpm php8.2-curl php8.2-intl php8.2-mbstring php8.2-gd php8.2-zip php8.2-xml php8.2-mysql php8.2-soap php8.2-imap
+        apt install -y php-fpm php-curl php-intl php-mbstring php-gd php-zip php-xml php-mysql php-soap php-imap
 
         cd /var/www
         wget https://sourceforge.net/projects/dolibarr/files/Dolibarr%20ERP-CRM/19.0.2/dolibarr-19.0.2.tgz
@@ -264,7 +289,7 @@ server {
 
     location ~ \.php\$ {
         include fastcgi_params;
-        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
     }
