@@ -162,6 +162,20 @@ configure_ufw() {
     ip a | grep -oP 'inet \K[\d.]+'
 }
 
+# Function to install specific versions
+install_specific_versions() {
+    # Add PHP repository for 8.2
+    add-apt-repository ppa:ondrej/php -y
+    apt update
+    apt install -y php8.2=8.2.20-1+ubuntu$(lsb_release -sr) nginx=1.22.1-1~ubuntu$(lsb_release -sr) expect
+
+    # Add MariaDB repository and install version 11.4.2
+    apt install software-properties-common -y
+    curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+    apt update
+    apt install -y mariadb-server=1:11.4.2+maria~$(lsb_release -sc)
+}
+
 # Main script execution
 check_os
 check_root
@@ -180,8 +194,7 @@ case $choice in
         echo
 
         echo "Configuring MariaDB..."
-        apt update
-        apt install -y mariadb-server expect
+        install_specific_versions
 
         ROOT_PASSWORD=$(generate_password)
         choose_user_directory
@@ -206,7 +219,7 @@ EOF
         echo "MariaDB configuration complete."
 
         echo "Installing Dolibarr and configuring NGINX..."
-        apt install -y nginx php-fpm php-curl php-intl php-mbstring php-gd php-zip php-xml php-mysql php-soap php-imap
+        apt install -y php8.2-fpm php8.2-curl php8.2-intl php8.2-mbstring php8.2-gd php8.2-zip php8.2-xml php8.2-mysql php8.2-soap php8.2-imap
 
         cd /var/www
         wget https://sourceforge.net/projects/dolibarr/files/Dolibarr%20ERP-CRM/19.0.2/dolibarr-19.0.2.tgz
