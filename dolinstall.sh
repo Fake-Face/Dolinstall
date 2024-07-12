@@ -167,13 +167,31 @@ install_specific_versions() {
     # Add PHP repository for 8.2
     add-apt-repository ppa:ondrej/php -y
     apt update
-    apt install -y php8.2=8.2.20-1+ubuntu$(lsb_release -sr) nginx=1.22.1-1~ubuntu$(lsb_release -sr) expect
+    apt install -y php8.2=8.2.20-1+ubuntu$(lsb_release -sr) expect
 
     # Add MariaDB repository and install version 11.4.2
     apt install software-properties-common -y
     curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
     apt update
     apt install -y mariadb-server=1:11.4.2+maria~$(lsb_release -sc)
+    
+    # Install dependencies for building NGINX
+    apt install -y build-essential libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev
+
+    # Download and install NGINX 1.22.1
+    cd /usr/local/src
+    wget https://nginx.org/download/nginx-1.22.1.tar.gz
+    tar -xzvf nginx-1.22.1.tar.gz
+    cd nginx-1.22.1
+    ./configure
+    make
+    make install
+
+    # Create a symbolic link to make nginx command available
+    ln -s /usr/local/nginx/sbin/nginx /usr/bin/nginx
+
+    # Start NGINX
+    /usr/local/nginx/sbin/nginx
 }
 
 # Main script execution
@@ -228,15 +246,15 @@ EOF
         chown www-data:www-data -R dolibarr-19.0.2
         chmod 755 -R dolibarr-19.0.2
 
-        mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default.old
+        mv /usr/local/nginx/conf/nginx.conf /usr/local/nginx/conf/nginx.conf.old
 
-        cat << EOF | tee /etc/nginx/sites-available/default
+        cat << EOF | tee /usr/local/nginx/conf/nginx.conf
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
 
     root /var/www/dolibarr-19.0.2/htdocs;
-    index index.php index.html index.htm index.nginx-debian.html;
+    index index.php index.html index.htm;
 
     server_name _;
 
@@ -245,15 +263,15 @@ server {
     }
 
     location ~ \.php\$ {
-        include snippets/fastcgi-php.conf;
+        include fastcgi_params;
         fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
     }
 }
 EOF
 
-        nginx -t
-        nginx -v
-        systemctl restart nginx
+        nginx -s reload
 
         rm /var/www/dolibarr-19.0.2.tgz
 
