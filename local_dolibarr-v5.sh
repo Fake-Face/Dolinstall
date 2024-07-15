@@ -160,7 +160,7 @@ echo "Configuration de MariaDB terminée."
 echo "Installation de Dolibarr et configuration de NGINX en cours..."
 
 # Installation des dépendances nécessaires pour NGINX et PHP
-apt install -y nginx php-fpm php-curl php-intl php-mbstring php-gd php-zip php-xml php-mysql php-soap php-imap
+apt install -y nginx php-fpm php-curl php-intl php-mbstring php-gd php-zip php-xml php-mysql php-imap
 
 # Se placer dans le répertoire /var/www
 cd /var/www
